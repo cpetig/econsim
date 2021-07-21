@@ -1,21 +1,20 @@
 mod rs_leastsquare;
+extern crate nalgebra as na;
 
-use std::collections::BTreeMap as HashMap;//HashMap;
+use std::collections::BTreeMap as HashMap; //HashMap;
+
+const NUM_GOODS: usize = 4;
+const NUM_LABORS: usize = 5;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Good {
-    Log, // Units: Kg
+    Log,  // Units: Kg
     Wood, // Units Kg
     Meat, // Units: Kg
     Food,
 }
 
-const GOODS: [Good; 4] = [
-    Good::Log,
-    Good::Wood,
-    Good::Meat,
-    Good::Food,
-];
+const GOODS: [Good; NUM_GOODS] = [Good::Log, Good::Wood, Good::Meat, Good::Food];
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Labor {
@@ -26,7 +25,7 @@ enum Labor {
     Cook,
 }
 
-const LABORS: [Labor; 5] = [
+const LABORS: [Labor; NUM_LABORS] = [
     Labor::Lumberjack,
     Labor::Carpenter,
     Labor::Fisher,
@@ -100,6 +99,8 @@ struct Economy {
 
     // Total output of this good that occured in the last tick
     output: HashMap<Good, f32>,
+
+    demand: HashMap<Good, f32>,
 }
 
 impl Economy {
@@ -115,11 +116,17 @@ impl Economy {
 
             // Productivity may limit goods that can be produced if inputs are undersupplied
             // If 1.0, all industry inputs are satisfied. If 0.0, no industry inputs are satisfied.
-            let (limiting_good, productivity) = industry.inputs
+            let (limiting_good, productivity) = industry
+                .inputs
                 .iter()
                 // Productivity can never be lower than 0% or higher than 100%. You can throw capital at a tree as much
                 // as you like: labor is required for economic output!
-                .map(|(good, _)| (Some(*good), self.available.get(good).unwrap_or(&0.0).max(0.0).min(1.0)))
+                .map(|(good, _)| {
+                    (
+                        Some(*good),
+                        self.available.get(good).unwrap_or(&0.0).max(0.0).min(1.0),
+                    )
+                })
                 .min_by_key(|(_, available)| (*available * 100000.0) as i64) // PartialOrd hack
                 .unwrap_or((None, 1.0));
 
@@ -127,7 +134,8 @@ impl Economy {
                 *total_demand.entry(good).or_insert(0.0) += input * laborers;
             }
 
-            self.productivity.insert(labor, (productivity, limiting_good));
+            self.productivity
+                .insert(labor, (productivity, limiting_good));
 
             for &(good, output) in industry.outputs {
                 *total_supply.entry(good).or_insert(0.0) += output * laborers * productivity;
@@ -141,8 +149,11 @@ impl Economy {
             let total_supply = total_supply.get(&good).unwrap_or(&0.0);
             let total_demand = total_demand.get(&good).unwrap_or(&0.0);
             // println!("{:?}, total_supply = {}, total_demand = {}", good, total_supply, total_demand);
-            self.available.insert(good, total_supply / total_demand.max(0.00001));
-            self.price.insert(good, total_demand / total_supply.max(0.00001));
+            self.available
+                .insert(good, total_supply / total_demand.max(0.00001));
+            self.price
+                .insert(good, total_demand / total_supply.max(0.00001));
+            self.demand.insert(good, *total_demand);
         }
     }
 
@@ -161,11 +172,10 @@ impl Economy {
 
             let laborers = self.laborers.get(&labor).unwrap_or(&0.0);
 
-            let total_input_value = industry.inputs
+            let total_input_value = industry
+                .inputs
                 .iter()
-                .map(|(good, input)| {
-                    *self.labor_value.get(good).unwrap_or(&0.0) * input
-                })
+                .map(|(good, input)| *self.labor_value.get(good).unwrap_or(&0.0) * input)
                 .sum::<f32>();
 
             let labor_time = 1.0;
@@ -175,9 +185,8 @@ impl Economy {
             for &(good, output) in industry.outputs {
                 let volume = laborers * productivity;
 
-                *total_labor_values
-                    .entry(good)
-                    .or_insert(0.0) += (total_input_value + labor_time) / output * volume;
+                *total_labor_values.entry(good).or_insert(0.0) +=
+                    (total_input_value + labor_time) / output * volume;
                 *total_produced.entry(good).or_insert(0.0) += volume;
             }
         }
@@ -185,7 +194,8 @@ impl Economy {
         for good in GOODS {
             let total_labor_value = total_labor_values.get(&good).unwrap_or(&0.0);
             let total_produced = total_produced.get(&good).unwrap_or(&0.0);
-            self.labor_value.insert(good, total_labor_value / total_produced.max(0.00001));
+            self.labor_value
+                .insert(good, total_labor_value / total_produced.max(0.00001));
 
             self.output.insert(good, *total_produced);
         }
@@ -261,79 +271,111 @@ impl Economy {
     // }
 
     fn redistribute_laborers(&mut self) {
-        // Redistribute labor according to relative values of industry outputs
-        for labor in LABORS {
-            let industry = labor.industry();
+        // minimize sum of ((supply-demand)/demand)²
+        // minimize sum of (supply/demand + BIAS)²
+        const BIAS: f32 = -1.1; // bias slightly towards overproduction
 
-            // let total_consumption_value = industry.outputs
-            //     .iter()
-            //     .map(|(good, output)| {
-            //         *self.consumption_value.get(good).unwrap_or(&0.001) * output
-            //     })
-            //     .sum::<f32>();
-            let total_output = industry.outputs
-                .iter()
-                .map(|(good, output)| output)
-                .sum::<f32>();
+        // supply = workers * amount * productivity
+        // so https://en.wikipedia.org/wiki/Ordinary_least_squares
+        // y = [-BIAS; N]
+        // X[n][p] = amount_np * productivity_p/ demand_n
+        // beta = laborers: [_;P]
 
-            let labor_time = 1.0;
-            // Total industry output (used to normalise later, meaningless except in relation to `total_value`)
-            let total_labor_value = industry.inputs
-                .iter()
-                .map(|(good, input)| {
-                    *self.labor_value.get(good).unwrap_or(&0.001) * input
-                })
-                .sum::<f32>() + labor_time;
-
-            // let total_input_values = industry.inputs
-            //     .iter()
-            //     .map(|(good, input)| {
-            //         *self.value.get(good).unwrap_or(&0.001) * input
-            //     })
-            //     .sum::<f32>();
-            // let total_output_values = industry.outputs
-            //     .iter()
-            //     .map(|(good, output)| {
-            //         *self.value.get(good).unwrap_or(&0.001) * output
-            //     })
-            //     .sum::<f32>();
-            let total_input_price = industry.inputs
-                .iter()
-                .map(|(good, input)| {
-                    *self.price.get(good).unwrap_or(&0.001) * input
-                })
-                .sum::<f32>();
-            let total_output_price = industry.outputs
-                .iter()
-                .map(|(good, output)| {
-                    *self.price.get(good).unwrap_or(&0.001) * output
-                })
-                .sum::<f32>();
-
-            let total_oversupply = industry.outputs
-                .iter()
-                .map(|(good, output)| {
-                    output * self.available.get(&good).unwrap_or(&0.0).max(0.01)
-                })
-                .sum::<f32>();
-            let oversupply = total_oversupply / total_output;
-
-            // If the productivity of an industry is 0, obviously there's no point allocating laborers to it, no matter
-            // how valuable the outputs are!
-            let (productivity, limiting_good) = *self.productivity.get(&labor).unwrap_or(&(0.0, None));
-
-            // TODO: Use Maslow hierarchy to determine this
-            let labor_price = 10.0 / self.price.get(&Good::Food).unwrap_or(&0.0).max(0.00001);
-
-            // Average normalised value of outputs (remember, all values the same = pareto efficiency)
-            let avg_value = (total_output_price - total_input_price) * productivity - labor_price;//1.0 / oversupply;//total_consumption_value / total_labor_value.max(0.001);// * productivity;
-
-            // What proportion of the existing workforce should move industries each tick? (at maximum)
-            let rate = 0.1;
-            let change = (1.0 + avg_value) * rate + (1.0 - rate);
-            // println!("change {:?} = {}, avg_value = {}, productivity = {}, total_output_values = {}, total_input_values + labor_time = {}, oversupply = {}, limiting_good = {:?}", labor, change, avg_value, productivity, total_output_values, total_input_values + labor_time, oversupply, limiting_good);
-            *self.laborers.entry(labor).or_insert(0.0) *= change;
+        let y = na::DMatrix::<f32>::from_fn(NUM_GOODS, 1, |_, _| -BIAS);
+        dbg!(&y);
+        //[-BIAS; NUM_LABORS];
+        let mut X = na::DMatrix::<f32>::from_fn(NUM_GOODS, NUM_LABORS, |n, p| 0.0);
+        for p in 0..NUM_LABORS {
+            let labor = LABORS[p];
+            let products = labor.industry().outputs;
+            for (good, amount) in products {
+                let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
+                X[(n, p)] = *amount * self.productivity[&labor].0
+                    / self.demand[good];
+            }
         }
+        dbg!(&X);
+        let beta = rs_leastsquare::least_squares(X, y);
+        dbg!(&beta);
+
+        if let Some(beta) = beta {
+        for i in 0..NUM_LABORS {
+            self.laborers.get_mut(&LABORS[i]).map(|val| *val=beta[(i,0)]);
+        }
+    }
+
+        // Redistribute labor according to relative values of industry outputs
+        // for labor in LABORS {
+        //     let industry = labor.industry();
+
+        //     // let total_consumption_value = industry.outputs
+        //     //     .iter()
+        //     //     .map(|(good, output)| {
+        //     //         *self.consumption_value.get(good).unwrap_or(&0.001) * output
+        //     //     })
+        //     //     .sum::<f32>();
+        //     let total_output = industry
+        //         .outputs
+        //         .iter()
+        //         .map(|(good, output)| output)
+        //         .sum::<f32>();
+
+        //     let labor_time = 1.0;
+        //     // Total industry output (used to normalise later, meaningless except in relation to `total_value`)
+        //     let total_labor_value = industry
+        //         .inputs
+        //         .iter()
+        //         .map(|(good, input)| *self.labor_value.get(good).unwrap_or(&0.001) * input)
+        //         .sum::<f32>()
+        //         + labor_time;
+
+        //     // let total_input_values = industry.inputs
+        //     //     .iter()
+        //     //     .map(|(good, input)| {
+        //     //         *self.value.get(good).unwrap_or(&0.001) * input
+        //     //     })
+        //     //     .sum::<f32>();
+        //     // let total_output_values = industry.outputs
+        //     //     .iter()
+        //     //     .map(|(good, output)| {
+        //     //         *self.value.get(good).unwrap_or(&0.001) * output
+        //     //     })
+        //     //     .sum::<f32>();
+        //     let total_input_price = industry
+        //         .inputs
+        //         .iter()
+        //         .map(|(good, input)| *self.price.get(good).unwrap_or(&0.001) * input)
+        //         .sum::<f32>();
+        //     let total_output_price = industry
+        //         .outputs
+        //         .iter()
+        //         .map(|(good, output)| *self.price.get(good).unwrap_or(&0.001) * output)
+        //         .sum::<f32>();
+
+        //     let total_oversupply = industry
+        //         .outputs
+        //         .iter()
+        //         .map(|(good, output)| output * self.available.get(&good).unwrap_or(&0.0).max(0.01))
+        //         .sum::<f32>();
+        //     let oversupply = total_oversupply / total_output;
+
+        //     // If the productivity of an industry is 0, obviously there's no point allocating laborers to it, no matter
+        //     // how valuable the outputs are!
+        //     let (productivity, limiting_good) =
+        //         *self.productivity.get(&labor).unwrap_or(&(0.0, None));
+
+        //     // TODO: Use Maslow hierarchy to determine this
+        //     let labor_price = 10.0 / self.price.get(&Good::Food).unwrap_or(&0.0).max(0.00001);
+
+        //     // Average normalised value of outputs (remember, all values the same = pareto efficiency)
+        //     let avg_value = (total_output_price - total_input_price) * productivity - labor_price; //1.0 / oversupply;//total_consumption_value / total_labor_value.max(0.001);// * productivity;
+
+        //     // What proportion of the existing workforce should move industries each tick? (at maximum)
+        //     let rate = 0.1;
+        //     let change = (1.0 + avg_value) * rate + (1.0 - rate);
+        //     // println!("change {:?} = {}, avg_value = {}, productivity = {}, total_output_values = {}, total_input_values + labor_time = {}, oversupply = {}, limiting_good = {:?}", labor, change, avg_value, productivity, total_output_values, total_input_values + labor_time, oversupply, limiting_good);
+        //     *self.laborers.entry(labor).or_insert(0.0) *= change;
+        // }
 
         // The allocation of the workforce might now be *higher* than the working population! If this is the case, we normalise
         // the workforce over the population to ensure realism is maintained.
@@ -347,7 +389,11 @@ impl Economy {
             // quickly adapt to changing conditions
             let min_workforce_alloc = 0.01;
 
-            let factor = if total_laborers > working_pop { working_pop / total_laborers } else { 1.0 };
+            let factor = if total_laborers > working_pop {
+                working_pop / total_laborers
+            } else {
+                1.0
+            };
             *l = (*l * factor).max(min_workforce_alloc);
         });
     }
@@ -372,6 +418,7 @@ fn main() {
         // value: HashMap::new(),
         price: HashMap::new(),
         output: HashMap::new(),
+        demand: HashMap::new(),
     };
 
     economy.laborers.insert(Labor::Lumberjack, 1.0);
@@ -380,11 +427,18 @@ fn main() {
     economy.laborers.insert(Labor::Hunter, 1.0);
     economy.laborers.insert(Labor::Cook, 1.0);
 
-    for i in 0..100 {
+    for i in 0..10
+    /*100*/
+    {
         println!("--- Tick {} ---", i);
         economy.tick();
 
-        println!("Laborers: {:?} ({}% lazy, pop = {})", economy.laborers, 100.0 * (economy.pop - economy.laborers.values().sum::<f32>()) / economy.pop, economy.pop);
+        println!(
+            "Laborers: {:?} ({}% lazy, pop = {})",
+            economy.laborers,
+            100.0 * (economy.pop - economy.laborers.values().sum::<f32>()) / economy.pop,
+            economy.pop
+        );
         println!("Available: {:?}", economy.available);
         // println!("Consumption value: {:?}", economy.consumption_value);
         println!("Labor value: {:?}", economy.labor_value);
