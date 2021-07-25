@@ -111,10 +111,18 @@ struct Economy {
     demand: HashMap<Good, f32>,
 }
 
-fn my_print(m: &nalgebra::DMatrix<f32>) {
-    for i in 0..m.ncols() {
-        for j in 0..m.nrows() {
-            print!("{:.3}\t", m[(i,j)]);
+fn my_print(y: &nalgebra::DMatrix<f32>, x: &nalgebra::DMatrix<f32>, beta: Option<&nalgebra::DMatrix<f32>>) {
+    print!("\t\t");
+    if let Some(beta) = beta {
+        for j in 0..x.nrows() {
+            print!("{:.2}\t", beta[(j,0)]);
+        }
+    }
+    print!("\n");
+    for i in 0..x.ncols() {
+        print!("{:.2}\t\t", y[(i,0)]);
+        for j in 0..x.nrows() {
+            print!("{:.3}\t", x[(i,j)]);
         }
         print!("\n");
     }
@@ -300,7 +308,7 @@ impl Economy {
 
         let y =
             na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| if i < NUM_GOODS { -BIAS } else { 0.0 });
-        dbg!(&y);
+        //dbg!(&y);
         //[-BIAS; NUM_LABORS];
         let mut x = na::DMatrix::<f32>::from_fn(NUM_MAX, NUM_MAX, |_n, _p| 0.0);
         for p in 0..NUM_LABORS {
@@ -309,16 +317,17 @@ impl Economy {
             for (good, amount) in products {
                 let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
                 //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
-                x[(n, p)] = *amount * self.productivity[&labor].0 / self.demand[good];
+                x[(n, p)] = *amount / self.productivity[&labor].0.max(0.0001) / self.demand[good];
             }
         }
         // solve the under-determinism by making fisher and hunter scale by their efficiency
         x[(4, 2)] = -1.0;
         x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
-        my_print(&x);
+        //my_print(&y, &x);
 //        dbg!(&x);
-        let beta = rs_leastsquare::least_squares(x, y);
-        dbg!(&beta);
+        let beta = rs_leastsquare::least_squares(&x, &y);
+        //dbg!(&beta);
+        my_print(&y, &x, beta.as_ref());
 
         if let Some(beta) = beta {
             for i in 0..NUM_LABORS {

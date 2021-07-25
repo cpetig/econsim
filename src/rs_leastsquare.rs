@@ -1,7 +1,7 @@
 // from https://github.com/dirkschumacher/rs-leastsquare
 extern crate nalgebra as na;
 
-pub fn least_squares<T>(x: na::DMatrix<T>, y: na::DMatrix<T>) -> std::option::Option<na::DMatrix<T>>
+pub fn least_squares<T>(x: &na::DMatrix<T>, y: &na::DMatrix<T>) -> std::option::Option<na::DMatrix<T>>
 where
     T: 'static,
     T: na::ComplexField,
@@ -9,7 +9,7 @@ where
     T: std::fmt::Debug,
     T: std::cmp::PartialEq,
 {
-    let qr_result = x.qr();
+    let qr_result = x.clone().qr();
     let qty = qr_result.q().transpose() * y;
     let beta_hat = qr_result.r().solve_upper_triangular(&qty);
     beta_hat
@@ -25,7 +25,7 @@ mod tests {
         let x = na::DMatrix::from_row_slice(2, 2, &[1.0, 3.0, 2.0, 13.0]);
         let y = na::DMatrix::from_column_slice(2, 1, &[3.0, 5.0]);
 
-        let res = least_squares(x, y).unwrap();
+        let res = least_squares(&x, &y).unwrap();
         let coef0_diff: f64 = res[0] - 3.428571428571428;
         let coef1_diff: f64 = res[1] - -0.142857142857143;
         let eps = 1e-10;
@@ -38,7 +38,7 @@ mod tests {
         let x = na::DMatrix::from_row_slice(2, 2, &[1.0, 1.0, 2.0, 2.0]);
         let y = na::DMatrix::from_column_slice(2, 1, &[3.0, 5.0]);
 
-        let res = least_squares(x, y);
+        let res = least_squares(&x, &y);
         match res {
             None => assert!(true),
             Some(_x) => panic!("Should not happen"),
