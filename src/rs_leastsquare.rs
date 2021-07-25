@@ -1,7 +1,10 @@
 // from https://github.com/dirkschumacher/rs-leastsquare
 extern crate nalgebra as na;
 
-pub fn least_squares<T>(x: &na::DMatrix<T>, y: &na::DMatrix<T>) -> std::option::Option<na::DMatrix<T>>
+pub fn least_squares<T>(
+    x: &na::DMatrix<T>,
+    y: &na::DMatrix<T>,
+) -> std::option::Option<na::DMatrix<T>>
 where
     T: 'static,
     T: na::ComplexField,

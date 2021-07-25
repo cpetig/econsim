@@ -111,32 +111,47 @@ struct Economy {
     demand: HashMap<Good, f32>,
 }
 
-fn my_print(y: &nalgebra::DMatrix<f32>, x: &nalgebra::DMatrix<f32>, beta: Option<&nalgebra::DMatrix<f32>>) {
+fn my_print(
+    y: &nalgebra::DMatrix<f32>,
+    x: &nalgebra::DMatrix<f32>,
+    beta: Option<&nalgebra::DMatrix<f32>>,
+) {
     print!("\t\t");
     if let Some(beta) = beta {
         for j in 0..x.nrows() {
-            print!("{:.2}\t", beta[(j,0)]);
+            print!("{:.2}\t", beta[(j, 0)]);
         }
     }
     print!("\n");
     for i in 0..x.ncols() {
-        print!("{:.2}\t\t", y[(i,0)]);
+        print!("{:.2}\t\t", y[(i, 0)]);
         for j in 0..x.nrows() {
-            print!("{:.3}\t", x[(i,j)]);
+            print!("{:.3}\t", x[(i, j)]);
         }
         print!("\n");
     }
 }
 
-fn newton(y: &nalgebra::DMatrix<f32>, x: &nalgebra::DMatrix<f32>, beta_start: &nalgebra::DMatrix<f32>) -> nalgebra::DMatrix<f32> {
+fn newton(
+    y: &nalgebra::DMatrix<f32>,
+    x: &nalgebra::DMatrix<f32>,
+    beta_start: &nalgebra::DMatrix<f32>,
+) -> nalgebra::DMatrix<f32> {
     let mut beta = beta_start.clone();
     let rows = beta.nrows();
-    let f_x = (x * beta.clone() - y).norm();
+    let f_x = x * beta.clone() - y;
+    //.norm();
+    let norm = f_x.norm();
     dbg!((&beta, &f_x));
     for i in 0..rows {
-        let sum = x.row(i).norm();
+        let sum = x
+            .row(i)
+            .iter()
+            .enumerate()
+            .map(|(r, &val)| 2.0 * f_x[(r, 0)] * val)
+            .sum::<f32>();
         dbg!(sum);
-        beta[(i,0)] -= f_x / (2.0*sum);
+        beta[(i, 0)] -= norm / sum;
     }
     beta
 }
@@ -337,7 +352,7 @@ impl Economy {
         x[(4, 2)] = -1.0;
         x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
         //my_print(&y, &x);
-//        dbg!(&x);
+        //        dbg!(&x);
         let beta_start = na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| self.laborers[&LABORS[i]]);
         let beta = newton(&y, &x, &beta_start);
         //let beta = rs_leastsquare::least_squares(&x, &y);
@@ -345,7 +360,8 @@ impl Economy {
         //my_print(&y, &x, beta.as_ref());
         my_print(&y, &x, Some(&beta));
 
-        if true { //let Some(beta) = beta {
+        if true {
+            //let Some(beta) = beta {
             for i in 0..NUM_LABORS {
                 self.laborers
                     .get_mut(&LABORS[i])
