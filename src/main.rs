@@ -1,10 +1,18 @@
+#![feature(const_fn_trait_bound)]
+
 mod rs_leastsquare;
 extern crate nalgebra as na;
 
 use std::collections::BTreeMap as HashMap; //HashMap;
 
+// not possible, even in unstable???
+// const fn const_max<T: Ord+ Copy>(a: T, b: T) -> T {
+//     if a>b { a } else {b}
+// }
+
 const NUM_GOODS: usize = 4;
 const NUM_LABORS: usize = 5;
+const NUM_MAX: usize = 5; //const_max::<usize>(NUM_GOODS,NUM_LABORS);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Good {
@@ -101,6 +109,15 @@ struct Economy {
     output: HashMap<Good, f32>,
 
     demand: HashMap<Good, f32>,
+}
+
+fn my_print(m: &nalgebra::DMatrix<f32>) {
+    for i in 0..m.ncols() {
+        for j in 0..m.nrows() {
+            print!("{:.3}\t", m[(i,j)]);
+        }
+        print!("\n");
+    }
 }
 
 impl Economy {
@@ -281,28 +298,35 @@ impl Economy {
         // X[n][p] = amount_np * productivity_p/ demand_n
         // beta = laborers: [_;P]
 
-        let y = na::DMatrix::<f32>::from_fn(NUM_GOODS, 1, |_, _| -BIAS);
+        let y =
+            na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| if i < NUM_GOODS { -BIAS } else { 0.0 });
         dbg!(&y);
         //[-BIAS; NUM_LABORS];
-        let mut X = na::DMatrix::<f32>::from_fn(NUM_GOODS, NUM_LABORS, |n, p| 0.0);
+        let mut x = na::DMatrix::<f32>::from_fn(NUM_MAX, NUM_MAX, |_n, _p| 0.0);
         for p in 0..NUM_LABORS {
             let labor = LABORS[p];
             let products = labor.industry().outputs;
             for (good, amount) in products {
                 let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
-                X[(n, p)] = *amount * self.productivity[&labor].0
-                    / self.demand[good];
+                //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
+                x[(n, p)] = *amount * self.productivity[&labor].0 / self.demand[good];
             }
         }
-        dbg!(&X);
-        let beta = rs_leastsquare::least_squares(X, y);
+        // solve the under-determinism by making fisher and hunter scale by their efficiency
+        x[(4, 2)] = -1.0;
+        x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
+        my_print(&x);
+//        dbg!(&x);
+        let beta = rs_leastsquare::least_squares(x, y);
         dbg!(&beta);
 
         if let Some(beta) = beta {
-        for i in 0..NUM_LABORS {
-            self.laborers.get_mut(&LABORS[i]).map(|val| *val=beta[(i,0)]);
+            for i in 0..NUM_LABORS {
+                self.laborers
+                    .get_mut(&LABORS[i])
+                    .map(|val| *val = beta[(i, 0)]);
+            }
         }
-    }
 
         // Redistribute labor according to relative values of industry outputs
         // for labor in LABORS {
@@ -427,7 +451,7 @@ fn main() {
     economy.laborers.insert(Labor::Hunter, 1.0);
     economy.laborers.insert(Labor::Cook, 1.0);
 
-    for i in 0..10
+    for i in 0..100
     /*100*/
     {
         println!("--- Tick {} ---", i);
