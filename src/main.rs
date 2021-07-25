@@ -128,6 +128,19 @@ fn my_print(y: &nalgebra::DMatrix<f32>, x: &nalgebra::DMatrix<f32>, beta: Option
     }
 }
 
+fn newton(y: &nalgebra::DMatrix<f32>, x: &nalgebra::DMatrix<f32>, beta_start: &nalgebra::DMatrix<f32>) -> nalgebra::DMatrix<f32> {
+    let mut beta = beta_start.clone();
+    let rows = beta.nrows();
+    let f_x = (x * beta.clone() - y).norm();
+    dbg!((&beta, &f_x));
+    for i in 0..rows {
+        let sum = x.row(i).norm();
+        dbg!(sum);
+        beta[(i,0)] -= f_x / (2.0*sum);
+    }
+    beta
+}
+
 impl Economy {
     // Calculate to what extent supply will satisfy demand for each good on the upcoming tick. See Economy::available.
     fn derive_available_goods(&mut self) {
@@ -317,7 +330,7 @@ impl Economy {
             for (good, amount) in products {
                 let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
                 //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
-                x[(n, p)] = *amount / self.productivity[&labor].0.max(0.0001) / self.demand[good];
+                x[(n, p)] = *amount / self.productivity[&labor].0.max(0.1) / self.demand[good];
             }
         }
         // solve the under-determinism by making fisher and hunter scale by their efficiency
@@ -325,11 +338,14 @@ impl Economy {
         x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
         //my_print(&y, &x);
 //        dbg!(&x);
-        let beta = rs_leastsquare::least_squares(&x, &y);
+        let beta_start = na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| self.laborers[&LABORS[i]]);
+        let beta = newton(&y, &x, &beta_start);
+        //let beta = rs_leastsquare::least_squares(&x, &y);
         //dbg!(&beta);
-        my_print(&y, &x, beta.as_ref());
+        //my_print(&y, &x, beta.as_ref());
+        my_print(&y, &x, Some(&beta));
 
-        if let Some(beta) = beta {
+        if true { //let Some(beta) = beta {
             for i in 0..NUM_LABORS {
                 self.laborers
                     .get_mut(&LABORS[i])
@@ -477,6 +493,8 @@ fn main() {
         println!("Labor value: {:?}", economy.labor_value);
         // println!("Value: {:?}", economy.value);
         println!("Price: {:?}", economy.price);
+        println!("Demand: {:?}", economy.demand);
+        println!("Productivity: {:?}", economy.productivity);
         println!("Total output: {:?}", economy.output);
     }
 }
