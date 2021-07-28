@@ -141,8 +141,8 @@ fn newton(
     let rows = beta.nrows();
     let f_x = x * beta.clone() - y;
     //.norm();
-    let norm = f_x.norm();
-    dbg!((&beta, &f_x));
+    //let norm = f_x.norm();
+    //dbg!((&beta, &f_x));
     for i in 0..rows {
         let sum = x
             .row(i)
@@ -150,8 +150,9 @@ fn newton(
             .enumerate()
             .map(|(r, &val)| 2.0 * f_x[(r, 0)] * val)
             .sum::<f32>();
-        dbg!(sum);
-        beta[(i, 0)] -= norm / sum;
+        let scale = f_x[(i,0)]*f_x[(i,0)]; // square function?
+        //dbg!(sum);
+        beta[(i, 0)] -= scale / sum;
     }
     beta
 }
@@ -354,11 +355,12 @@ impl Economy {
         //my_print(&y, &x);
         //        dbg!(&x);
         let beta_start = na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| self.laborers[&LABORS[i]]);
-        let beta = newton(&y, &x, &beta_start);
+        let mut beta = beta_start;
+        for _ in 0..5 { beta = newton(&y, &x, &beta); my_print(&y, &x, Some(&beta)); }
         //let beta = rs_leastsquare::least_squares(&x, &y);
         //dbg!(&beta);
         //my_print(&y, &x, beta.as_ref());
-        my_print(&y, &x, Some(&beta));
+        //my_print(&y, &x, Some(&beta));
 
         if true {
             //let Some(beta) = beta {
