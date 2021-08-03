@@ -1,4 +1,5 @@
 use na::SMatrix;
+use rand::Rng;
 
 // see https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm
 
@@ -70,17 +71,26 @@ fn gauss_newton(
 }
 
 pub fn main() {
-    let equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 3.0, 0.0]);
-    let bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0]);
-
-    let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4]);
+    let mut rng = rand::thread_rng();
+    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 3.0, 0.0]);
+    let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0]);
     for _ in 0..5 {
-        x0 = gauss_newton(&equation, &bias, &x0);
-        println!(
-            "[{} {}] {}",
-            x0[(0, 0)],
-            x0[(1, 0)],
-            d(&equation, &bias, &x0)
-        );
+        let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4]);
+        for _ in 0..5 {
+            x0 = gauss_newton(&equation, &bias, &x0);
+            println!(
+                "[{} {}] {}",
+                x0[(0, 0)],
+                x0[(1, 0)],
+                d(&equation, &bias, &x0)
+            );
+        }
+        println!("-----");
+        for i in 0..M {
+            for j in 0..N {
+                equation[(i, j)] = rng.gen_range(0..5000) as f32 / 1000.0;
+            }
+            bias[(i, 0)] = rng.gen_range(100..5000) as f32 / 1000.0;
+        }
     }
 }
