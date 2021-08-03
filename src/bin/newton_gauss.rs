@@ -40,9 +40,23 @@ fn gauss_newton(x0: &na::DMatrix<f32>) -> na::DMatrix<f32> {
     // dbg!(d(&x0));
     // dbg!(&J);
     // dbg!(&D);
-    let dvec = -(Dinv * (JT * f(&x0)));
-    let alpha = 1.0_f32; // why negative?
-    let x1 = x0 + alpha * dvec;
+    let f_x0 = f(&x0);
+    let error0 = f_x0.norm_squared();
+    let dvec = -(Dinv * (JT * f_x0));
+    let mut alpha = 1.0_f32;
+    // line search
+    let x1 = loop {
+        let x1 = x0 + alpha * dvec.clone();
+        let f_x1 = f(&x1);
+        let error1 = f_x1.norm_squared();
+        if error1 < error0 {
+            break x1;
+        }
+        alpha /= 2.0;
+        if alpha < 0.001 {
+            break x0.clone(); // give up
+        }
+    };
     // dbg!(&x1);
     // dbg!(d(&x1));
     x1
@@ -52,6 +66,6 @@ pub fn main() {
     let mut x0 = na::DMatrix::from_column_slice(2, 1, &[10.4, 0.4]);
     for _ in 0..5 {
         x0 = gauss_newton(&x0);
-        println!("[{} {}] {}", x0[(0,0)],x0[(1,0)], d(&x0));
+        println!("[{} {}] {}", x0[(0, 0)], x0[(1, 0)], d(&x0));
     }
 }
