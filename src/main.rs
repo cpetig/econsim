@@ -64,7 +64,7 @@ impl Labor {
             },
             Labor::Cook => Industry {
                 inputs: &[(Good::Wood, 0.2), (Good::Meat, 1.0)],
-                outputs: &[(Good::Food, 1.0)], // Some fish is wasted (gutting)
+                outputs: &[(Good::Food, 2.0)], // Some fish is wasted (gutting)
             },
         }
     }
@@ -152,8 +152,8 @@ fn newton(
             .enumerate()
             .map(|(r, &val)| 2.0 * f_x[(r, 0)] * val)
             .sum::<f32>();
-        let scale = f_x[(i,0)].powi(2);
-        dbg!((scale,sum, -scale/sum));
+        let scale = f_x[(i, 0)].powi(2);
+        dbg!((scale, sum, -scale / sum));
         beta[(i, 0)] -= scale / sum;
     }
     beta
@@ -166,11 +166,11 @@ fn gradient_descend(
 ) -> nalgebra::DMatrix<f32> {
     let r = y - x * beta_start.clone();
     let r_t = r.transpose();
-    let gamma1 = (r_t.clone() * r.clone())[(0,0)];
-    let gamma2 = (r_t.clone() * (x * r.clone()))[(0,0)];
+    let gamma1 = (r_t.clone() * r.clone())[(0, 0)];
+    let gamma2 = (r_t.clone() * (x * r.clone()))[(0, 0)];
     dbg!(gamma1);
     dbg!(gamma2);
-    let gamma = gamma1/gamma2;
+    let gamma = gamma1 / gamma2;
     dbg!(&r);
     dbg!(gamma);
     beta_start + gamma * r
@@ -302,13 +302,17 @@ impl Economy {
         x[(4, 2)] = -1.0;
         x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
         let beta_start = na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| self.laborers[&LABORS[i]]);
-        //let mut beta = beta_start;
-        //for _ in 0..5 { beta = newton(&y, &x, &beta); my_print(&y, &x, Some(&beta)); }
+        let mut beta = beta_start;
+        for _ in 0..5 {
+            beta = newton(&y, &x, &beta);
+            my_print(&y, &x, Some(&beta));
+        }
         //for _ in 0..5 { beta = gradient_descend(&y, &x, &beta); my_print(&y, &x, Some(&beta)); }
-        let beta = least_squares(&x, &y);
+        // let beta = least_squares(&x, &y);
+        // my_print(&y, &x, beta.as_ref());
 
-        if //true {
-            let Some(beta) = beta {
+        if true {
+            //let Some(beta) = beta {
             for i in 0..NUM_LABORS {
                 self.laborers
                     .get_mut(&LABORS[i])
