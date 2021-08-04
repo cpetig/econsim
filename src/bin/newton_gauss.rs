@@ -5,8 +5,8 @@ use rand::Rng;
 
 extern crate nalgebra as na;
 
-const M: usize = 2;
-const N: usize = 2;
+const M: usize = 3; // number of equations
+const N: usize = 2; // number of parameters
 
 const sqrt2: f32 = 1.414213562_f32; // 2.0_f32.sqrt();
 
@@ -72,9 +72,9 @@ fn gauss_newton(
 
 pub fn main() {
     let mut rng = rand::thread_rng();
-    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 3.0, 0.0]);
-    let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0]);
-    for _ in 0..5 {
+    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 3.0, 0.0, 0.0, 1.0]);
+    let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0, 2.0]);
+    for _ in 0..1 /*5*/ {
         let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4]);
         for _ in 0..5 {
             x0 = gauss_newton(&equation, &bias, &x0);
