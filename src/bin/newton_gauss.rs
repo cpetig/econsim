@@ -5,8 +5,9 @@ use rand::Rng;
 
 extern crate nalgebra as na;
 
-const M: usize = 3; // number of equations
-const N: usize = 2; // number of parameters
+const M: usize = 2; // number of equations
+const N: usize = 3; // number of parameters
+const beta_k: f32 = 0.001; // zero gives GaussNewton, non zero Levenberg-Marquardt
 
 const sqrt2: f32 = 1.414213562_f32; // 2.0_f32.sqrt();
 
@@ -38,7 +39,8 @@ fn gauss_newton(
 ) -> na::SMatrix<f32, N, 1> {
     let J = J(equation, x0);
     let JT = J.transpose();
-    let D = JT.clone() * J.clone();
+    let I = SMatrix::<f32,N,N>::from_fn(|r,c| if r==c {1.0} else {0.0});
+    let D = JT.clone() * J.clone() + beta_k * I;
     let Dinv = D.try_inverse().unwrap();
     // print_2x2(&JT);
     // print_2x2(&J);
@@ -72,16 +74,18 @@ fn gauss_newton(
 
 pub fn main() {
     let mut rng = rand::thread_rng();
-    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 3.0, 0.0, 0.0, 1.0]);
-    let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0, 2.0]);
+    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 0.0, 3.0, 0.0, 1.0]);
+    let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0]);
     for _ in 0..1 /*5*/ {
-        let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4]);
+        let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4, 0.2]);
         for _ in 0..5 {
             x0 = gauss_newton(&equation, &bias, &x0);
+            print!("[");
+            for i in 0..N {
+                print!("{} ", x0[(i,0)]);
+            }
             println!(
-                "[{} {}] {}",
-                x0[(0, 0)],
-                x0[(1, 0)],
+                "] {}",
                 d(&equation, &bias, &x0)
             );
         }
