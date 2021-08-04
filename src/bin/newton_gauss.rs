@@ -39,7 +39,7 @@ fn gauss_newton(
 ) -> na::SMatrix<f32, N, 1> {
     let J = J(equation, x0);
     let JT = J.transpose();
-    let I = SMatrix::<f32,N,N>::from_fn(|r,c| if r==c {1.0} else {0.0});
+    let I = SMatrix::<f32, N, N>::from_fn(|r, c| if r == c { 1.0 } else { 0.0 });
     let D = JT.clone() * J.clone() + beta_k * I;
     let Dinv = D.try_inverse().unwrap();
     // print_2x2(&JT);
@@ -74,20 +74,20 @@ fn gauss_newton(
 
 pub fn main() {
     let mut rng = rand::thread_rng();
-    let mut equation = na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 0.0, 3.0, 0.0, 1.0]);
+    let mut equation =
+        na::SMatrix::<f32, M, N>::from_row_slice(&[2.0_f32, 1.0, 0.0, 3.0, 0.0, 1.0]);
     let mut bias = na::SMatrix::<f32, M, 1>::from_column_slice(&[3.0, 3.0]);
-    for _ in 0..1 /*5*/ {
-        let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[10.4, 0.4, 0.2]);
+    for _ in 0..1
+    /*5*/
+    {
+        let mut x0 = na::SMatrix::<f32, N, 1>::from_column_slice(&[1.0, 1.0, 0.1]);
         for _ in 0..5 {
             x0 = gauss_newton(&equation, &bias, &x0);
             print!("[");
             for i in 0..N {
-                print!("{} ", x0[(i,0)]);
+                print!("{} ", x0[(i, 0)]);
             }
-            println!(
-                "] {}",
-                d(&equation, &bias, &x0)
-            );
+            println!("] {}", d(&equation, &bias, &x0));
         }
         println!("-----");
         for i in 0..M {
