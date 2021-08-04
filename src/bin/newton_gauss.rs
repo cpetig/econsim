@@ -2,6 +2,7 @@ use na::SMatrix;
 use rand::Rng;
 
 // see https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm
+// and https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm
 
 extern crate nalgebra as na;
 
