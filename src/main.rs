@@ -67,7 +67,7 @@ impl Labor {
             },
             Labor::Cook => Industry {
                 inputs: &[(Good::Wood, 0.2), (Good::Meat, 1.0)],
-                outputs: &[(Good::Food, 2.0)], // Some fish is wasted (gutting)
+                outputs: &[(Good::Food, 1.0)], // Some fish is wasted (gutting)
             },
         }
     }
