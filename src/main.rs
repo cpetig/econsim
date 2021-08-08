@@ -1,11 +1,13 @@
 #![feature(const_fn_trait_bound)]
 
-mod rs_leastsquare;
+// mod rs_leastsquare;
 extern crate nalgebra as na;
+mod gauss_newton;
+use crate::gauss_newton::gauss_newton;
 
 use std::collections::BTreeMap as HashMap;
 
-use crate::rs_leastsquare::least_squares; //HashMap;
+// use crate::rs_leastsquare::least_squares; //HashMap;
 
 // not possible, even in unstable???
 // const fn const_max<T: Ord+ Copy>(a: T, b: T) -> T {
@@ -14,7 +16,8 @@ use crate::rs_leastsquare::least_squares; //HashMap;
 
 const NUM_GOODS: usize = 4;
 const NUM_LABORS: usize = 5;
-const NUM_MAX: usize = 5; //const_max::<usize>(NUM_GOODS,NUM_LABORS);
+const OVERPRODUCTION_TARGET: f32 = 1.01;
+// const NUM_MAX: usize = 5; //const_max::<usize>(NUM_GOODS,NUM_LABORS);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Good {
@@ -113,68 +116,68 @@ struct Economy {
     demand: HashMap<Good, f32>,
 }
 
-fn my_print(
-    y: &nalgebra::DMatrix<f32>,
-    x: &nalgebra::DMatrix<f32>,
-    beta: Option<&nalgebra::DMatrix<f32>>,
+fn my_print<const M: usize,const N: usize>(
+    y: &nalgebra::SMatrix<f32,M,1>,
+    x: &nalgebra::SMatrix<f32,M,N>,
+    beta: Option<&nalgebra::SMatrix<f32,N,1>>,
 ) {
     print!("\t\t");
     if let Some(beta) = beta {
-        for j in 0..x.nrows() {
+        for j in 0..x.ncols() {
             print!("{:.2}\t", beta[(j, 0)]);
         }
     }
     print!("\n");
-    for i in 0..x.ncols() {
+    for i in 0..x.nrows() {
         print!("{:.2}\t\t", y[(i, 0)]);
-        for j in 0..x.nrows() {
+        for j in 0..x.ncols() {
             print!("{:.3}\t", x[(i, j)]);
         }
         print!("\n");
     }
 }
 
-fn newton(
-    y: &nalgebra::DMatrix<f32>,
-    x: &nalgebra::DMatrix<f32>,
-    beta_start: &nalgebra::DMatrix<f32>,
-) -> nalgebra::DMatrix<f32> {
-    let mut beta = beta_start.clone();
-    let rows = beta.nrows();
-    let f_x = x * beta.clone() - y;
-    //.norm();
-    //let norm = f_x.norm();
-    //dbg!((&beta, &f_x));
-    for i in 0..rows {
-        let sum = x
-            .row(i)
-            .iter()
-            .enumerate()
-            .map(|(r, &val)| 2.0 * f_x[(r, 0)] * val)
-            .sum::<f32>();
-        let scale = f_x[(i, 0)].powi(2);
-        dbg!((scale, sum, -scale / sum));
-        beta[(i, 0)] -= scale / sum;
-    }
-    beta
-}
+// fn newton(
+//     y: &nalgebra::DMatrix<f32>,
+//     x: &nalgebra::DMatrix<f32>,
+//     beta_start: &nalgebra::DMatrix<f32>,
+// ) -> nalgebra::DMatrix<f32> {
+//     let mut beta = beta_start.clone();
+//     let rows = beta.nrows();
+//     let f_x = x * beta.clone() - y;
+//     //.norm();
+//     //let norm = f_x.norm();
+//     //dbg!((&beta, &f_x));
+//     for i in 0..rows {
+//         let sum = x
+//             .row(i)
+//             .iter()
+//             .enumerate()
+//             .map(|(r, &val)| 2.0 * f_x[(r, 0)] * val)
+//             .sum::<f32>();
+//         let scale = f_x[(i, 0)].powi(2);
+//         dbg!((scale, sum, -scale / sum));
+//         beta[(i, 0)] -= scale / sum;
+//     }
+//     beta
+// }
 
-fn gradient_descend(
-    y: &nalgebra::DMatrix<f32>,
-    x: &nalgebra::DMatrix<f32>,
-    beta_start: &nalgebra::DMatrix<f32>,
-) -> nalgebra::DMatrix<f32> {
-    let r = y - x * beta_start.clone();
-    let r_t = r.transpose();
-    let gamma1 = (r_t.clone() * r.clone())[(0, 0)];
-    let gamma2 = (r_t.clone() * (x * r.clone()))[(0, 0)];
-    dbg!(gamma1);
-    dbg!(gamma2);
-    let gamma = gamma1 / gamma2;
-    dbg!(&r);
-    dbg!(gamma);
-    beta_start + gamma * r
-}
+// fn gradient_descend(
+//     y: &nalgebra::DMatrix<f32>,
+//     x: &nalgebra::DMatrix<f32>,
+//     beta_start: &nalgebra::DMatrix<f32>,
+// ) -> nalgebra::DMatrix<f32> {
+//     let r = y - x * beta_start.clone();
+//     let r_t = r.transpose();
+//     let gamma1 = (r_t.clone() * r.clone())[(0, 0)];
+//     let gamma2 = (r_t.clone() * (x * r.clone()))[(0, 0)];
+//     dbg!(gamma1);
+//     dbg!(gamma2);
+//     let gamma = gamma1 / gamma2;
+//     dbg!(&r);
+//     dbg!(gamma);
+//     beta_start + gamma * r
+// }
 
 impl Economy {
     // Calculate to what extent supply will satisfy demand for each good on the upcoming tick. See Economy::available.
@@ -278,7 +281,7 @@ impl Economy {
     fn redistribute_laborers(&mut self) {
         // minimize sum of ((supply-demand)/demand)²
         // minimize sum of (supply/demand + BIAS)²
-        const BIAS: f32 = -1.1; // bias slightly towards overproduction
+        const BIAS: f32 = -OVERPRODUCTION_TARGET; // bias slightly towards overproduction
 
         // supply = workers * amount * productivity
         // so https://en.wikipedia.org/wiki/Ordinary_least_squares
@@ -287,8 +290,8 @@ impl Economy {
         // beta = laborers: [_;P]
 
         let y =
-            na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| if i < NUM_GOODS { -BIAS } else { 0.0 });
-        let mut x = na::DMatrix::<f32>::from_fn(NUM_MAX, NUM_MAX, |_n, _p| 0.0);
+            na::SMatrix::<f32,NUM_GOODS, 1>::from_fn(|i, _| if i < NUM_GOODS { -BIAS } else { 0.0 });
+        let mut x = na::SMatrix::<f32,NUM_GOODS,NUM_LABORS>::from_fn(|_n, _p| 0.0);
         for p in 0..NUM_LABORS {
             let labor = LABORS[p];
             let products = labor.industry().outputs;
@@ -299,12 +302,12 @@ impl Economy {
             }
         }
         // solve the under-determinism by making fisher and hunter scale by their efficiency
-        x[(4, 2)] = -1.0;
-        x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
-        let beta_start = na::DMatrix::<f32>::from_fn(NUM_MAX, 1, |i, _| self.laborers[&LABORS[i]]);
+        // x[(4, 2)] = -1.0;
+        // x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
+        let beta_start = na::SMatrix::<f32, NUM_LABORS, 1>::from_fn(|i, _| self.laborers[&LABORS[i]]);
         let mut beta = beta_start;
-        for _ in 0..5 {
-            beta = newton(&y, &x, &beta);
+        for _ in 0..1 {
+            beta = gauss_newton(&x, &y, &beta);
             my_print(&y, &x, Some(&beta));
         }
         //for _ in 0..5 { beta = gradient_descend(&y, &x, &beta); my_print(&y, &x, Some(&beta)); }
