@@ -377,7 +377,7 @@ fn main() {
     economy.laborers.insert(Labor::Hunter, 1.0);
     economy.laborers.insert(Labor::Cook, 1.0);
 
-    for i in 0..100
+    for i in 0..10
     /*100*/
     {
         println!("--- Tick {} ---", i);
