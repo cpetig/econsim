@@ -289,8 +289,8 @@ impl Economy {
         // X[n][p] = amount_np * productivity_p/ demand_n
         // beta = laborers: [_;P]
 
-        let y =
-            na::SMatrix::<f32,NUM_GOODS, 1>::from_fn(|i, _| if i < NUM_GOODS { -BIAS } else { 0.0 });
+        let mut y = na::SMatrix::<f32,NUM_GOODS, 1>::from_fn(|_, _| OVERPRODUCTION_TARGET-1.0);
+        y[3] = self.demand[&Good::Food];
         let mut x = na::SMatrix::<f32,NUM_GOODS,NUM_LABORS>::from_fn(|_n, _p| 0.0);
         for p in 0..NUM_LABORS {
             let labor = LABORS[p];
@@ -298,8 +298,15 @@ impl Economy {
             for (good, amount) in products {
                 let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
                 //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
-                x[(n, p)] = *amount / self.productivity[&labor].0.max(0.1) / self.demand[good];
+                x[(n, p)] = *amount; // / self.productivity[&labor].0.max(0.1) / self.demand[good];
             }
+            let materials = labor.industry().inputs;
+            for (good, amount) in materials {
+                let n = GOODS.iter().enumerate().find(|x| *x.1 == *good).unwrap().0;
+                //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
+                x[(n, p)] = -*amount; // / self.productivity[&labor].0.max(0.1) / self.demand[good];
+            }
+
         }
         // solve the under-determinism by making fisher and hunter scale by their efficiency
         // x[(4, 2)] = -1.0;
