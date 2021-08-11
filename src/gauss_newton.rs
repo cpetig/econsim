@@ -1,3 +1,5 @@
+use std::ptr::eq;
+
 use na::SMatrix;
 use rand::Rng;
 
@@ -22,7 +24,8 @@ fn f<const M: usize,const N: usize>(
 
 // df_r(x)/dx_c  (oh it is not dependent on x)
 fn J<const M: usize,const N: usize>(equation: &na::SMatrix<f32, M, N>, x: &na::SMatrix<f32, N, 1>) -> na::SMatrix<f32, M, N> {
-    na::SMatrix::<f32, M, N>::from_fn(|r, c| (sqrt2 * equation[(r, c)]))
+    sqrt2 * equation
+//   na::SMatrix::<f32, M, N>::from_fn(|r, c| (sqrt2 * equation[(r, c)]))
 }
 
 fn d<const M: usize,const N: usize>(
