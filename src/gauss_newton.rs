@@ -36,6 +36,17 @@ fn d<const M: usize,const N: usize>(
     f(equation, bias, x).norm_squared()
 }
 
+fn print<const M: usize,const N: usize>(
+    x: &nalgebra::SMatrix<f32,M,N>,
+) {
+    for i in 0..M {
+        for j in 0..N {
+            print!("{:.3}\t", x[(i, j)]);
+        }
+        print!("\n");
+    }
+}
+
 pub fn gauss_newton<const M: usize,const N: usize>(
     equation: &na::SMatrix<f32, M, N>,
     bias: &na::SMatrix<f32, M, 1>,
@@ -57,6 +68,12 @@ pub fn gauss_newton<const M: usize,const N: usize>(
     let f_x0 = f(equation, bias, x0);
     let error0 = f_x0.norm_squared();
     let dvec = -(Dinv * (JT * f_x0));
+    let scale2 = -(Dinv * JT);
+    print(&x0.transpose());
+    print(&f_x0.transpose());
+    print(&scale2);
+    print(&dvec.transpose());
+    print(&(scale2*f_x0).transpose());
     let mut alpha = 1.0_f32;
     // line search
     let x1 = loop {
