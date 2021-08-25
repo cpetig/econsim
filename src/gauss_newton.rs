@@ -74,6 +74,8 @@ pub fn gauss_newton<const M: usize,const N: usize>(
     print(&scale2);
     print(&dvec.transpose());
     print(&(scale2*f_x0).transpose());
+    let svd = nalgebra::linalg::SVD::new(J.clone(), true, true);
+    print(&svd.pseudo_inverse(1e-7));
     let mut alpha = 1.0_f32;
     // line search
     let x1 = loop {
