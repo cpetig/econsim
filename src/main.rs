@@ -116,10 +116,10 @@ struct Economy {
     demand: HashMap<Good, f32>,
 }
 
-fn my_print<const M: usize,const N: usize>(
-    y: &nalgebra::SMatrix<f32,M,1>,
-    x: &nalgebra::SMatrix<f32,M,N>,
-    beta: Option<&nalgebra::SMatrix<f32,N,1>>,
+fn my_print<const M: usize, const N: usize>(
+    y: &nalgebra::SMatrix<f32, M, 1>,
+    x: &nalgebra::SMatrix<f32, M, N>,
+    beta: Option<&nalgebra::SMatrix<f32, N, 1>>,
 ) {
     print!("\t\t");
     if let Some(beta) = beta {
@@ -289,9 +289,9 @@ impl Economy {
         // X[n][p] = amount_np * productivity_p/ demand_n
         // beta = laborers: [_;P]
 
-        let mut y = na::SMatrix::<f32,NUM_GOODS, 1>::from_fn(|_, _| OVERPRODUCTION_TARGET-1.0);
+        let mut y = na::SMatrix::<f32, NUM_GOODS, 1>::from_fn(|_, _| OVERPRODUCTION_TARGET - 1.0);
         y[3] = self.demand[&Good::Food];
-        let mut x = na::SMatrix::<f32,NUM_GOODS,NUM_LABORS>::from_fn(|_n, _p| 0.0);
+        let mut x = na::SMatrix::<f32, NUM_GOODS, NUM_LABORS>::from_fn(|_n, _p| 0.0);
         for p in 0..NUM_LABORS {
             let labor = LABORS[p];
             let products = labor.industry().outputs;
@@ -306,12 +306,12 @@ impl Economy {
                 //dbg!((n, p, amount, self.productivity[&labor].0, self.demand[good]));
                 x[(n, p)] = -*amount; // / self.productivity[&labor].0.max(0.1) / self.demand[good];
             }
-
         }
         // solve the under-determinism by making fisher and hunter scale by their efficiency
         // x[(4, 2)] = -1.0;
         // x[(4, 3)] = x[(2, 2)] / x[(2, 3)];
-        let beta_start = na::SMatrix::<f32, NUM_LABORS, 1>::from_fn(|i, _| self.laborers[&LABORS[i]]);
+        let beta_start =
+            na::SMatrix::<f32, NUM_LABORS, 1>::from_fn(|i, _| self.laborers[&LABORS[i]]);
         let mut beta = beta_start;
         for _ in 0..1 {
             beta = gauss_newton(&x, &y, &beta);
