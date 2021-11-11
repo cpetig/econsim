@@ -21,27 +21,49 @@ fn inv_recurse<const WARES: usize, const LABORS: usize>(
         .sum();
     if sum > 0.001 {
         let factor = factor / sum;
-        for (col, (_, eff)) in r
-            .iter()
-            .zip(productivity.iter())
-            .enumerate()
-            .filter(|(_, (val, _))| **val > 0.0)
-        {
-            res[(col, destrow)] += factor * eff;
-            if depth >= 1 {
-                for (row2, value) in x.column(col).iter().enumerate().filter(|(_, v)| **v < 0.0) {
-                    inv_recurse(
-                        res,
-                        x,
-                        productivity,
-                        row2,
-                        destrow,
-                        -value * factor,
-                        depth - 1,
-                    );
+        for col in 0..LABORS {
+            let eff=productivity[(col,0)];
+            if r[col]>0.0 {
+                res[(col, destrow)] += factor * eff;
+                if depth >= 1 {
+                    for row2 in 0..WARES {
+                        let value = x[(row2,col)];
+                        if value<0.0 {
+                            inv_recurse(
+                                res,
+                                x,
+                                productivity,
+                                row2,
+                                destrow,
+                                -value * factor,
+                                depth - 1,
+                            );    
+                        }
+                    }
                 }
             }
         }
+        // for (col, (_, eff)) in r
+        //     .iter()
+        //     .zip(productivity.iter())
+        //     .enumerate()
+        //     .filter(|(_, (val, _))| **val > 0.0)
+        // {
+        //     res[(col, destrow)] += factor * eff;
+        //     if depth >= 1 {
+        //         for (row2, value) in x.column(col).iter().enumerate().filter(|(_, v)| **v < 0.0) {
+        //             inv_recurse(
+        //                 res,
+        //                 x,
+        //                 productivity,
+        //                 row2,
+        //                 destrow,
+        //                 -value * factor,
+        //                 depth - 1,
+        //             );
+        //         }
+        //     }
+        // }
     }
 }
 
