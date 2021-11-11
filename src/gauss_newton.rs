@@ -103,7 +103,7 @@ pub fn gauss_newton<const M: usize, const N: usize>(
     print(&(scale2 * f_x0).transpose());
     print(&equation);
     let minv = my_inverse(&equation);
-    print(&(minv*-1.0/sqrt2));
+    print(&(minv * -1.0 / sqrt2));
     let mut alpha = 1.0_f32;
     // line search
     let x1 = loop {
