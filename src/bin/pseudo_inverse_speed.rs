@@ -367,5 +367,5 @@ fn main() {
     let y = my_neg_inverse(&x, &prod);
     let b=amd64_timer::ticks();
     dbg!(b-a);
-    dbg!(&y);
+    dbg!(y.norm_squared());
 }
