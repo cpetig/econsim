@@ -14,60 +14,110 @@ use std::collections::BTreeMap as HashMap;
 //     if a>b { a } else {b}
 // }
 
-const NUM_GOODS: usize = 4;
-const NUM_LABORS: usize = 5;
+const NUM_GOODS: usize = 12;
+const NUM_LABORS: usize = 12;
 const OVERPRODUCTION_TARGET: f32 = 1.01;
 // const NUM_MAX: usize = 5; //const_max::<usize>(NUM_GOODS,NUM_LABORS);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Good {
-    Log,  // Units: Kg
-    Wood, // Units Kg
-    Meat, // Units: Kg
-    Food,
+    GoodA,
+    GoodB,
+    GoodD,
+    GoodE,
+    GoodF,
+    GoodG,
+    GoodJ,
+    GoodK,
+    GoodL,
+    GoodM,
+    GoodP,
+    GoodQ,
 }
 
-const GOODS: [Good; NUM_GOODS] = [Good::Log, Good::Wood, Good::Meat, Good::Food];
+const GOODS: [Good; NUM_GOODS] = [Good::GoodA, Good::GoodB, Good::GoodD, Good::GoodE, Good::GoodF, Good::GoodG, Good::GoodJ, Good::GoodK, Good::GoodL, Good::GoodM, Good::GoodP, Good::GoodQ];
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Labor {
-    Lumberjack,
-    Carpenter,
-    Fisher,
-    Hunter,
-    Cook,
+    LaborD,
+    LaborE,
+    LaborF,
+    LaborG,
+    LaborJ,
+    LaborK,
+    LaborL,
+    LaborM,
+    LaborJP,
+    LaborKP,
+    LaborLP,
+    LaborQ,
 }
 
 const LABORS: [Labor; NUM_LABORS] = [
-    Labor::Lumberjack,
-    Labor::Carpenter,
-    Labor::Fisher,
-    Labor::Hunter,
-    Labor::Cook,
+    Labor::LaborD,
+    Labor::LaborE,
+    Labor::LaborF,
+    Labor::LaborG,
+    Labor::LaborJ,
+    Labor::LaborK,
+    Labor::LaborL,
+    Labor::LaborM,
+    Labor::LaborJP,
+    Labor::LaborKP,
+    Labor::LaborLP,
+    Labor::LaborQ,
 ];
 
 impl Labor {
     fn industry(&self) -> Industry {
         match self {
-            Labor::Lumberjack => Industry {
-                inputs: &[],
-                outputs: &[(Good::Log, 10.0)],
+            Labor::LaborD => Industry {
+                inputs: &[(Good::GoodA, 3.0)],
+                outputs: &[(Good::GoodD, 1.0)],
             },
-            Labor::Carpenter => Industry {
-                inputs: &[(Good::Log, 10.0)],
-                outputs: &[(Good::Wood, 10.0)], // 1/3rd is 'wasted' (sawdust, etc.)
+            Labor::LaborE => Industry {
+                inputs: &[(Good::GoodA, 2.0)],
+                outputs: &[(Good::GoodE, 1.0)],
             },
-            Labor::Fisher => Industry {
-                inputs: &[(Good::Wood, 0.1)],
-                outputs: &[(Good::Meat, 1.0)],
+            Labor::LaborF => Industry {
+                inputs: &[(Good::GoodA, 1.0),(Good::GoodB, 1.0)],
+                outputs: &[(Good::GoodF, 1.0)],
             },
-            Labor::Hunter => Industry {
-                inputs: &[],
-                outputs: &[(Good::Meat, 1.0)],
+            Labor::LaborG => Industry {
+                inputs: &[(Good::GoodB, 2.0)],
+                outputs: &[(Good::GoodG, 1.0)],
             },
-            Labor::Cook => Industry {
-                inputs: &[(Good::Wood, 0.2), (Good::Meat, 1.0)],
-                outputs: &[(Good::Food, 1.0)], // Some fish is wasted (gutting)
+            Labor::LaborJ => Industry {
+                inputs: &[(Good::GoodD, 1.0)],
+                outputs: &[(Good::GoodJ, 1.0)],
+            },
+            Labor::LaborK => Industry {
+                inputs: &[(Good::GoodE, 1.0)],
+                outputs: &[(Good::GoodK, 1.0)],
+            },
+            Labor::LaborL => Industry {
+                inputs: &[(Good::GoodF, 2.0)],
+                outputs: &[(Good::GoodL, 1.0)],
+            },
+            Labor::LaborM => Industry {
+                inputs: &[(Good::GoodG, 1.0)],
+                outputs: &[(Good::GoodM, 1.0)],
+            },
+            Labor::LaborJP => Industry {
+                inputs: &[(Good::GoodJ, 40.0)],
+                outputs: &[(Good::GoodP, 40.0)],
+            },
+            Labor::LaborKP => Industry {
+                inputs: &[(Good::GoodK, 40.0)],
+                outputs: &[(Good::GoodP, 40.0)],
+            },
+            Labor::LaborLP => Industry {
+                inputs: &[(Good::GoodL, 40.0)],
+                outputs: &[(Good::GoodP, 40.0)],
+            },
+            Labor::LaborQ => Industry {
+                inputs: &[(Good::GoodM, 2.0)],
+                outputs: &[(Good::GoodQ, 1.0)],
             },
         }
     }
@@ -220,7 +270,10 @@ impl Economy {
         }
 
         // TODO: determine required food based on consumption value & Maslow hierachy
-        total_demand.insert(Good::Food, self.pop * 0.5);
+        total_supply.insert(Good::GoodA, 40.0);
+        total_supply.insert(Good::GoodB, 40.0);
+        total_demand.insert(Good::GoodP, 20.0);
+        total_demand.insert(Good::GoodQ, 10.0);
 
         for good in GOODS {
             let total_supply = total_supply.get(&good).unwrap_or(&0.0);
@@ -290,7 +343,10 @@ impl Economy {
         // beta = laborers: [_;P]
 
         let mut y = na::SMatrix::<f32, NUM_GOODS, 1>::from_fn(|_, _| OVERPRODUCTION_TARGET - 1.0);
-        y[3] = self.demand[&Good::Food];
+        y[0] = -40.0; // self.supply[&Good::GoodA];
+        y[1] = -40.0; // self.supply[&Good::GoodB];
+        y[NUM_GOODS-2] = self.demand[&Good::GoodP];
+        y[NUM_GOODS-1] = self.demand[&Good::GoodQ];
         let mut x = na::SMatrix::<f32, NUM_GOODS, NUM_LABORS>::from_fn(|_n, _p| 0.0);
         for p in 0..NUM_LABORS {
             let labor = LABORS[p];
@@ -371,11 +427,9 @@ fn main() {
         demand: HashMap::new(),
     };
 
-    economy.laborers.insert(Labor::Lumberjack, 1.0);
-    economy.laborers.insert(Labor::Carpenter, 1.0);
-    economy.laborers.insert(Labor::Fisher, 1.0);
-    economy.laborers.insert(Labor::Hunter, 1.0);
-    economy.laborers.insert(Labor::Cook, 1.0);
+    for i in 0..NUM_LABORS {
+        economy.laborers.insert(LABORS[i], 1.0);    
+    }
 
     for i in 0..10
     /*100*/
